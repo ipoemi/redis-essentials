@@ -1,28 +1,32 @@
 package chapter03
 
+import akka.util.ByteString
 import redis.RedisClient
-
-import cats._, cats.data._, cats.implicits._
+import cats._
+import cats.data._
+import cats.implicits._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 
-case class TimeSeriesString(client: RedisClient, namespace: String) {
-  import TimeSeriesString.{Granularity, FetchResult, units, granularities}
+case class TimeSeriesHash(client: RedisClient, namespace: String) {
+
+  import TimeSeriesHash.{Granularity, FetchResult, units, granularities}
 
   private def getRoundedTimestamp(timestampInSeconds: Long, precision: Int): Long =
     (Math.floor(timestampInSeconds / precision) * precision).toLong
 
-  private def getKey(granularity: Granularity, timestampInSeconds: Long): String = {
-    val roundedTimestamp = getRoundedTimestamp(timestampInSeconds, granularity.duration)
-    s"$namespace:${granularity.name}:${roundedTimestamp}"
+  private def getKeyName(granularity: Granularity, timestampInSeconds: Long): String = {
+    val roundedTimestamp = getRoundedTimestamp(timestampInSeconds, granularity.quantity)
+    s"$namespace:${ granularity.name }:${ roundedTimestamp }"
   }
 
   def insert(timestampInSeconds: Long): Future[Unit] =
     (granularities.map(_._2) map { granularity =>
-      val key = getKey(granularity, timestampInSeconds)
-      client.incr(key) flatMap { _ =>
+      val key = getKeyName(granularity, timestampInSeconds)
+      val fieldName = getRoundedTimestamp(timestampInSeconds, granularity.duration).toString
+      client.hincrby(key, fieldName, 1) flatMap { _ =>
         if (granularity.ttl != -1) client.expire(key, granularity.ttl)
         else Future(true)
       }
@@ -31,22 +35,31 @@ case class TimeSeriesString(client: RedisClient, namespace: String) {
   def fetch(granularity: Granularity, beginTimestamp: Long, endTimestamp: Long): Future[Seq[FetchResult]] = {
     val begin = getRoundedTimestamp(beginTimestamp, granularity.duration)
     val end = getRoundedTimestamp(endTimestamp, granularity.duration)
-    val keys = (begin to end by granularity.duration) map (getKey(granularity, _))
+    val keyAndFields = (begin to end by granularity.duration) map { timestamp =>
+      (getKeyName(granularity, timestamp), getRoundedTimestamp(timestamp, granularity.duration).toString)
+    }
 
     def getTimestamp(i: Int) = beginTimestamp + i * granularity.duration
 
-    client.mget(keys: _*) map { xs =>
-      xs.zipWithIndex map {
-        case (Some(bs), i) => FetchResult(getTimestamp(i), bs.decodeString("utf-8").toInt)
-        case (_, i) => FetchResult(getTimestamp(i), 0)
+    val multi = client.multi()
+
+    keyAndFields foreach { keyAndField =>
+      multi.hget(keyAndField._1, keyAndField._2)
+    }
+
+    multi.exec() map { mb =>
+      val xs = mb.responses.getOrElse(Vector.empty)
+      val bss = xs map (_.asOptByteString.getOrElse(ByteString("0", "utf-8")))
+      bss.zipWithIndex map { bsi =>
+        FetchResult(getTimestamp(bsi._2), bsi._1.decodeString("utf-8").toInt)
       }
     }
   }
 }
 
-object TimeSeriesString extends App {
+object TimeSeriesHash extends App {
 
-  case class Granularity(name: String, ttl: Int, duration: Int)
+  case class Granularity(name: String, ttl: Int, duration: Int, quantity: Int)
 
   case class FetchResult(timestamp: Long, value: Int)
 
@@ -58,18 +71,18 @@ object TimeSeriesString extends App {
   )
 
   val granularities: Map[Symbol, Granularity] = Map(
-    'sec -> Granularity("sec", units('hour) * 2, units('second)),
-    'min -> Granularity("min", units('day) * 7, units('minute)),
-    'hour -> Granularity("hour", units('day) * 60, units('hour)),
-    'day -> Granularity("day", -1, units('day))
+    'sec -> Granularity("sec", units('hour) * 2, units('second), units('minute) * 5),
+    'min -> Granularity("min", units('day) * 7, units('minute), units('hour) * 8),
+    'hour -> Granularity("hour", units('day) * 60, units('hour), units('day) * 10),
+    'day -> Granularity("day", -1, units('day), units('day) * 30)
   )
 
   def displayResults(granularityName: String, results: Seq[FetchResult]) = {
-    println(s"Results from ${granularityName}:")
+    println(s"Results from ${ granularityName }:")
     println("Timestamp \t| Value")
     println("--------------- | ------")
     results map { result =>
-      println(s"\t${result.timestamp}\t| ${result.value}")
+      println(s"\t${ result.timestamp }\t| ${ result.value }")
     }
     println()
   }
@@ -78,7 +91,7 @@ object TimeSeriesString extends App {
 
   val client = RedisClient("localhost", 6379)
 
-  val timeSeries = TimeSeriesString(client, "purchases:item1")
+  val timeSeries = TimeSeriesHash(client, "purchases:item1")
   val beginTimestamp = 0
 
   val r = for {
@@ -94,7 +107,9 @@ object TimeSeriesString extends App {
     displayResults(granularities('sec).name, secResult)
     displayResults(granularities('min).name, minResult)
   }
+  //val r = client.flushall()
 
   Await.result(r, Duration.Inf)
   Await.result(akkaSystem.terminate(), Duration.Inf)
 }
+
