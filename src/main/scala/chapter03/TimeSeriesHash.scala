@@ -1,18 +1,17 @@
 package chapter03
 
 import akka.util.ByteString
-import redis.RedisClient
-import cats._
-import cats.data._
 import cats.implicits._
+import redis.RedisClient
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
+import scala.util.Try
 
 case class TimeSeriesHash(client: RedisClient, namespace: String) {
 
-  import TimeSeriesHash.{Granularity, FetchResult, units, granularities}
+  import TimeSeriesHash.{FetchResult, Granularity, granularities}
 
   private def getRoundedTimestamp(timestampInSeconds: Long, precision: Int): Long =
     (Math.floor(timestampInSeconds / precision) * precision).toLong
@@ -43,17 +42,15 @@ case class TimeSeriesHash(client: RedisClient, namespace: String) {
 
     val multi = client.multi()
 
-    keyAndFields foreach { keyAndField =>
-      multi.hget(keyAndField._1, keyAndField._2)
-    }
-
-    multi.exec() map { mb =>
-      val xs = mb.responses.getOrElse(Vector.empty)
-      val bss = xs map (_.asOptByteString.getOrElse(ByteString("0", "utf-8")))
-      bss.zipWithIndex map { bsi =>
-        FetchResult(getTimestamp(bsi._2), bsi._1.decodeString("utf-8").toInt)
+    val ret = (keyAndFields map { keyAndField =>
+      multi.hget[String](keyAndField._1, keyAndField._2)
+    }).toVector.sequenceU map { xs =>
+      xs.zipWithIndex map { xi =>
+        FetchResult(getTimestamp(xi._2), (xi._1 flatMap (x => Try(x.toLong).toOption)).getOrElse(0))
       }
     }
+    multi.exec()
+    ret
   }
 }
 
@@ -61,7 +58,7 @@ object TimeSeriesHash extends App {
 
   case class Granularity(name: String, ttl: Int, duration: Int, quantity: Int)
 
-  case class FetchResult(timestamp: Long, value: Int)
+  case class FetchResult(timestamp: Long, value: Long)
 
   val units: Map[Symbol, Int] = Map(
     'second -> 1,

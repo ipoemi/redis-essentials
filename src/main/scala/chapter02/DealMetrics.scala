@@ -28,16 +28,16 @@ object DealMetrics extends App {
   def showUsersThatReceivedAllDeals(dealIds: List[String]): Future[Unit] = dealIds match {
     case Nil => Future.successful(())
     case h :: t =>
-      client.sinter(h, t: _*) map { users =>
-        println(s"${users map (_.decodeString("utf-8"))} received all of the deals: $dealIds")
+      client.sinter[String](h, t: _*) map { users =>
+        println(s"$users received all of the deals: $dealIds")
       }
   }
 
   def showUsersThatReceivedAtLeastOneOfTheDeals(dealIds: List[String]): Future[Unit] = dealIds match {
     case Nil => Future.successful(())
     case h :: t =>
-      client.sunion(h, t: _*) map { users =>
-        println(s"${users map (_.decodeString("utf-8"))} received all of the deals: $dealIds")
+      client.sunion[String](h, t: _*) map { users =>
+        println(s"$users received all of the deals: $dealIds")
       }
   }
 

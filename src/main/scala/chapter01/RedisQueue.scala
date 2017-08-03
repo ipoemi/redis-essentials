@@ -20,8 +20,8 @@ case class RedisQueue(name: String, client: RedisClient, blockingClient: RedisBl
   }
 
   def pop: Future[Option[(String, String)]] = {
-    OptionT(blockingClient.brpop(List(queueKey))).map { value =>
-      (value._1, value._2.decodeString("utf-8"))
+    OptionT(blockingClient.brpop[String](List(queueKey))).map { value =>
+      (value._1, value._2)
     }.value
   }
 }

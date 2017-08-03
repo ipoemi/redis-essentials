@@ -23,12 +23,11 @@ object ArticlesPopularity extends App {
   def showResults(client: RedisClient, id: String): Future[Unit] = {
     val headlineKey = s"article:$id:headline"
     val voteKey = s"article:$id:votes"
-    val result = client.mget(headlineKey, voteKey)
-    result.map { xs =>
+    client.mget[String](headlineKey, voteKey) map { xs =>
       for {
         headline <- xs(0)
         votes <- xs(1)
-      } println(s"The article ${headline.decodeString("utf-8")} has ${votes.decodeString("utf-8")} votes")
+      } println(s"The article $headline has $votes votes")
     }
   }
 

@@ -42,10 +42,10 @@ object LeaderBoard extends App {
     }
 
     def showTopUsers(quantity: Long): Future[Unit] = {
-      client.zrevrangeWithscores(key, 0, quantity - 1) map  { xs =>
+      client.zrevrangeWithscores[String](key, 0, quantity - 1) map  { xs =>
         println(s"\nTop $quantity users:")
         xs.zipWithIndex.foreach { case (x, i) =>
-          println(s"#${i + 1} User: ${x._1.decodeString("utf-8")}, score: ${x._2}")
+          println(s"#${i + 1} User: ${x._1}, score: ${x._2}")
         }
       }
     }
@@ -55,10 +55,10 @@ object LeaderBoard extends App {
         rank <- OptionT(client.zrevrank(key, username))
         startOffset = Math.floor(rank - (quantity / 2)).toInt max 0
         endOffset = startOffset + quantity - 1
-        rets <- OptionT(client.zrevrangeWithscores(key, startOffset, endOffset).map(_.some))
+        rets <- OptionT(client.zrevrangeWithscores[String](key, startOffset, endOffset).map(_.some))
       } yield {
         rets.zipWithIndex.map {
-          case (x, i) => User(startOffset + i + 1, x._2, x._1.decodeString("utf-8"))
+          case (x, i) => User(startOffset + i + 1, x._2, x._1)
         }
       }).value
     }

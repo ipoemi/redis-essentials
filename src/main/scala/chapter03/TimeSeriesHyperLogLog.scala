@@ -1,15 +1,16 @@
 package chapter03
 
+import akka.util.ByteString
 import cats.implicits._
 import redis.RedisClient
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
-import scala.util.Try
 
-case class TimeSeriesString(client: RedisClient, namespace: String) {
-  import TimeSeriesString.{FetchResult, Granularity, granularities}
+case class TimeSeriesHyperLogLog(client: RedisClient, namespace: String) {
+
+  import TimeSeriesHyperLogLog.{FetchResult, Granularity, granularities}
 
   private def getRoundedTimestamp(timestampInSeconds: Long, precision: Int): Long =
     (Math.floor(timestampInSeconds / precision) * precision).toLong
@@ -19,10 +20,10 @@ case class TimeSeriesString(client: RedisClient, namespace: String) {
     s"$namespace:${granularity.name}:${roundedTimestamp}"
   }
 
-  def insert(timestampInSeconds: Long): Future[Unit] =
+  def insert(timestampInSeconds: Long, thing: String): Future[Unit] =
     (granularities.map(_._2) map { granularity =>
       val key = getKey(granularity, timestampInSeconds)
-      client.incr(key) flatMap { _ =>
+      client.pfadd(key, thing) flatMap { _ =>
         if (granularity.ttl != -1) client.expire(key, granularity.ttl)
         else Future(true)
       }
@@ -35,15 +36,19 @@ case class TimeSeriesString(client: RedisClient, namespace: String) {
 
     def getTimestamp(i: Int) = beginTimestamp + i * granularity.duration
 
-    client.mget[String](keys: _*) map { xs =>
+    val multi = client.multi()
+
+    val ret = (keys map { key => multi.pfcount(key) }).toVector.sequenceU.map { xs =>
       xs.zipWithIndex map { xi =>
-        FetchResult(getTimestamp(xi._2), (xi._1 flatMap (x => Try(x.toLong).toOption)).getOrElse(0))
+        FetchResult(getTimestamp(xi._2), xi._1)
       }
     }
+    multi.exec()
+    ret
   }
 }
 
-object TimeSeriesString extends App {
+object TimeSeriesHyperLogLog extends App {
 
   case class Granularity(name: String, ttl: Int, duration: Int)
 
@@ -77,22 +82,24 @@ object TimeSeriesString extends App {
 
   val client = RedisClient("localhost", 6379)
 
-  val timeSeries = TimeSeriesString(client, "purchases:item1")
+  val timeSeries = TimeSeriesHyperLogLog(client, "concurrentplays")
   val beginTimestamp = 0
 
   val r = for {
     _ <- client.flushall()
-    _ <- timeSeries.insert(beginTimestamp)
-    _ <- timeSeries.insert(beginTimestamp + 1)
-    _ <- timeSeries.insert(beginTimestamp + 1)
-    _ <- timeSeries.insert(beginTimestamp + 3)
-    _ <- timeSeries.insert(beginTimestamp + 61)
+    _ <- timeSeries.insert(beginTimestamp, "user:max")
+    _ <- timeSeries.insert(beginTimestamp, "user:max")
+    _ <- timeSeries.insert(beginTimestamp + 1, "user:hugo")
+    _ <- timeSeries.insert(beginTimestamp + 1, "user:renata")
+    _ <- timeSeries.insert(beginTimestamp + 3, "user:hugo")
+    _ <- timeSeries.insert(beginTimestamp + 61, "user:kc")
     secResult <- timeSeries.fetch(granularities('sec), beginTimestamp, beginTimestamp + 4)
     minResult <- timeSeries.fetch(granularities('min), beginTimestamp, beginTimestamp + 120)
   } yield {
     displayResults(granularities('sec).name, secResult)
     displayResults(granularities('min).name, minResult)
   }
+  //val r = client.flushall()
 
   Await.result(r, Duration.Inf)
   Await.result(akkaSystem.terminate(), Duration.Inf)
