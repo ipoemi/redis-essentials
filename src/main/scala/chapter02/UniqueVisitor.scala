@@ -1,5 +1,6 @@
 package chapter02
 
+import akka.actor.ActorSystem
 import redis.RedisClient
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -16,7 +17,7 @@ object UniqueVisitor extends App {
   }
 
   def count(dates: Seq[String]): Future[Long] = {
-    val keys = dates map (makeKey(_))
+    val keys = dates map makeKey
     client.pfcount(keys: _*) map { r =>
       println(s"Dates ${dates.mkString(", ")} had $r visits")
       r
@@ -32,7 +33,7 @@ object UniqueVisitor extends App {
     }
   }
 
-  implicit val akkaSystem = akka.actor.ActorSystem()
+  implicit val akkaSystem: ActorSystem = akka.actor.ActorSystem()
 
   val client = RedisClient("localhost", 6379)
 
@@ -40,7 +41,7 @@ object UniqueVisitor extends App {
   val TotalVisits = 1000
 
   val r = for {
-    _ <- Future.sequence((0 until TotalVisits) map { i =>
+    _ <- Future.sequence((0 until TotalVisits) map { _ =>
       val userId = s"user_${Math.floor(1 + Math.random() * MaxUser).toInt}"
       val hour = Math.floor(Math.random() * 23).toInt
       addVisit(s"2015-01-01T$hour", userId)

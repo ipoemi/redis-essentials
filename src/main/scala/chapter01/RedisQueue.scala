@@ -1,12 +1,16 @@
 package chapter01
 
+import akka.actor.ActorSystem
 import redis.RedisClient
 import redis.RedisBlockingClient
+
 import scala.concurrent.Future
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
-import cats._, cats.data._, cats.implicits._
+import cats._
+import cats.data._
+import cats.implicits._
 
 case class RedisQueue(name: String, client: RedisClient, blockingClient: RedisBlockingClient) {
   val queueKey = s"queue:$name"
@@ -27,7 +31,7 @@ case class RedisQueue(name: String, client: RedisClient, blockingClient: RedisBl
 }
 
 object RedisQueue extends App {
-  implicit val akkaSystem = akka.actor.ActorSystem()
+  implicit val akkaSystem: ActorSystem = akka.actor.ActorSystem()
   val client = RedisClient("localhost", 6379)
   val blockingClient = RedisBlockingClient("localhost", 6379)
   val queue1 = RedisQueue("queue1", client, blockingClient)

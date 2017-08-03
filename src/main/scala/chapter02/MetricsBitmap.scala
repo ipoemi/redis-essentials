@@ -1,5 +1,6 @@
 package chapter02
 
+import akka.actor.ActorSystem
 import cats.data._
 import cats.implicits._
 import redis.RedisClient
@@ -37,20 +38,18 @@ object MetricsBitmap extends App {
 
   def showUserIdsFromVisit(date: String): Future[Unit] = {
     val key = makeDateKey(date)
-    client.get(key) map { byteStringOpt =>
-      byteStringOpt match {
-        case None => ()
-        case Some(byteString) =>
-          val bytes = byteString.toVector
-          val userIds = bytes.zipWithIndex flatMap { bi =>
-            getOffsetAndValues(bi._1, bi._2).filter(_._2).map(_._1)
-          }
-          println(s"Users $userIds visited on $date")
-      }
+    client.get(key) map {
+      case None => ()
+      case Some(byteString) =>
+        val bytes = byteString.toVector
+        val userIds = bytes.zipWithIndex flatMap { bi =>
+          getOffsetAndValues(bi._1, bi._2).filter(_._2).map(_._1)
+        }
+        println(s"Users $userIds visited on $date")
     }
   }
 
-  implicit val akkaSystem = akka.actor.ActorSystem()
+  implicit val akkaSystem: ActorSystem = akka.actor.ActorSystem()
 
   val client = RedisClient("localhost", 6379)
   client.del(makeDateKey("2015-01-01"))

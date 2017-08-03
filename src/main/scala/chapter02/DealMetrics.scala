@@ -1,12 +1,16 @@
 package chapter02
 
+import akka.actor.ActorSystem
 import redis.RedisClient
 import redis.RedisBlockingClient
+
 import scala.concurrent.Future
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
-import cats._, cats.data._, cats.implicits._
+import cats._
+import cats.data._
+import cats.implicits._
 
 object DealMetrics extends App {
   def markDealAsSent(dealId: String, userId: String): Future[Long] = {
@@ -41,7 +45,7 @@ object DealMetrics extends App {
       }
   }
 
-  implicit val akkaSystem = akka.actor.ActorSystem()
+  implicit val akkaSystem: ActorSystem = akka.actor.ActorSystem()
   val client = RedisClient("localhost", 6379)
 
   val r = for {

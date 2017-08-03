@@ -1,16 +1,20 @@
 package chapter02
 
+import akka.actor.ActorSystem
 import redis.RedisClient
 import redis.RedisBlockingClient
+
 import scala.concurrent.Future
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
-import cats._, cats.data._, cats.implicits._
+import cats._
+import cats.data._
+import cats.implicits._
 
 object LeaderBoard extends App {
 
-  implicit val akkaSystem = akka.actor.ActorSystem()
+  implicit val akkaSystem: ActorSystem = akka.actor.ActorSystem()
 
   val client = RedisClient("localhost", 6379)
 
@@ -19,7 +23,7 @@ object LeaderBoard extends App {
   case class LeaderBoard(key: String) {
     def addUser(username: String, score: Double): Future[Long] = {
       client.zadd(key, (score, username)) map { r =>
-        println(s"User $username added to the leaderboard!");
+        println(s"User $username added to the leaderboard!")
         r
       }
     }
@@ -79,7 +83,7 @@ object LeaderBoard extends App {
     _ <- leaderBoard.getUserScoreAndRank("Maxwell")
     _ <- leaderBoard.showTopUsers(3)
     usersOpt <- leaderBoard.getUsersAroundUser("Felipe", 5)
-  } yield  usersOpt map { users =>
+  } yield usersOpt foreach { users =>
     println("\nUsers around Felipe:")
     users.foreach { user =>
       println(s"#${user.rank} User: ${user.userName}, score: ${user.score}")

@@ -1,5 +1,6 @@
 package chapter04
 
+import akka.actor.ActorSystem
 import akka.util.ByteString
 import cats.implicits._
 import redis.RedisClient
@@ -10,7 +11,7 @@ import scala.concurrent.{Await, Future}
 
 object Publisher extends App {
 
-  implicit val akkaSystem = akka.actor.ActorSystem()
+  implicit val akkaSystem: ActorSystem = akka.actor.ActorSystem()
 
   val client = RedisClient("localhost", 6379)
 

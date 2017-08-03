@@ -1,12 +1,15 @@
 package chapter01
 
+import akka.actor.ActorSystem
 import redis.RedisClient
+
 import scala.concurrent.Future
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
-
-import cats._, cats.data._, cats.implicits._
+import cats._
+import cats.data._
+import cats.implicits._
 
 object ArticlesPopularity extends App {
 
@@ -25,13 +28,13 @@ object ArticlesPopularity extends App {
     val voteKey = s"article:$id:votes"
     client.mget[String](headlineKey, voteKey) map { xs =>
       for {
-        headline <- xs(0)
+        headline <- xs.head
         votes <- xs(1)
       } println(s"The article $headline has $votes votes")
     }
   }
 
-  implicit val akkaSystem = akka.actor.ActorSystem()
+  implicit val akkaSystem: ActorSystem = akka.actor.ActorSystem()
 
   val client = RedisClient("localhost", 6379)
 

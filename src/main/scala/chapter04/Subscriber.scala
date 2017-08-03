@@ -1,5 +1,6 @@
 package chapter04
 
+import akka.actor.ActorSystem
 import com.github.nscala_time.time.Imports.DateTime
 import redis._
 import redis.api.pubsub.Message
@@ -16,18 +17,17 @@ object Subscriber extends App {
     "HOSTNAME" -> (() => println(s"HOSTNAME ${java.net.InetAddress.getLocalHost.getHostName}"))
   )
 
-  implicit val akkaSystem = akka.actor.ActorSystem()
+  implicit val akkaSystem: ActorSystem = akka.actor.ActorSystem()
 
   val channel = Seq("channel-1")
 
   val client = RedisPubSub("localhost", 6379, channel, Seq("*"), {
-    case Message(ch, bs) => {
+    case Message(_, bs) =>
       val cs = bs.decodeString("utf-8")
       Command.get(cs) match {
         case Some(cmd) => cmd()
         case None => println(s"$cs is not command")
       }
-    }
   })
 
   akkaSystem.scheduler.scheduleOnce(20 seconds)(Await.result(akkaSystem.terminate(), Duration.Inf))

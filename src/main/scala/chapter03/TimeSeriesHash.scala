@@ -1,5 +1,6 @@
 package chapter03
 
+import akka.actor.ActorSystem
 import akka.util.ByteString
 import cats.implicits._
 import redis.RedisClient
@@ -22,7 +23,7 @@ case class TimeSeriesHash(client: RedisClient, namespace: String) {
   }
 
   def insert(timestampInSeconds: Long): Future[Unit] =
-    (granularities.map(_._2) map { granularity =>
+    (granularities.values map { granularity =>
       val key = getKeyName(granularity, timestampInSeconds)
       val fieldName = getRoundedTimestamp(timestampInSeconds, granularity.duration).toString
       client.hincrby(key, fieldName, 1) flatMap { _ =>
@@ -74,17 +75,17 @@ object TimeSeriesHash extends App {
     'day -> Granularity("day", -1, units('day), units('day) * 30)
   )
 
-  def displayResults(granularityName: String, results: Seq[FetchResult]) = {
+  def displayResults(granularityName: String, results: Seq[FetchResult]): Unit = {
     println(s"Results from ${ granularityName }:")
     println("Timestamp \t| Value")
     println("--------------- | ------")
-    results map { result =>
+    results foreach { result =>
       println(s"\t${ result.timestamp }\t| ${ result.value }")
     }
     println()
   }
 
-  implicit val akkaSystem = akka.actor.ActorSystem()
+  implicit val akkaSystem: ActorSystem = akka.actor.ActorSystem()
 
   val client = RedisClient("localhost", 6379)
 

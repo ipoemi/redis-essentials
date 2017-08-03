@@ -1,11 +1,15 @@
 package chapter01
 
+import akka.actor.ActorSystem
 import redis.RedisClient
+
 import scala.concurrent.Future
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
-import cats._, cats.data._, cats.implicits._
+import cats._
+import cats.data._
+import cats.implicits._
 
 object HashVotingSystem extends App {
   def saveLink(id: String, author: String, title: String, link: String): Future[Boolean] =
@@ -43,7 +47,7 @@ object HashVotingSystem extends App {
     }
   }
 
-  implicit val akkaSystem = akka.actor.ActorSystem()
+  implicit val akkaSystem: ActorSystem = akka.actor.ActorSystem()
 
   val client = RedisClient("localhost", 6379)
   /*

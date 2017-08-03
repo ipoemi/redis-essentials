@@ -1,6 +1,6 @@
 package chapter04
 
-import akka.actor.Props
+import akka.actor.{ActorSystem, Props}
 import com.github.nscala_time.time.Imports.DateTime
 import redis.actors.RedisSubscriberActor
 import redis.api.pubsub._
@@ -19,14 +19,13 @@ class SubscribeActor(channels: Seq[String] = Nil, patterns: Seq[String] = Nil) e
 
   import SubscribeActor.Command
 
-  def onMessage(message: Message) = message match {
-    case Message(ch, bs) => {
+  def onMessage(message: Message): Unit = message match {
+    case Message(_, bs) =>
       val cs = bs.decodeString("utf-8")
       Command.get(cs) match {
         case Some(cmd) => cmd()
         case None => println(s"$cs is not command")
       }
-    }
   }
 
   def onPMessage(pmessage: PMessage) {
@@ -41,7 +40,7 @@ object SubscribeActor extends App {
     "HOSTNAME" -> (() => println(s"HOSTNAME ${ java.net.InetAddress.getLocalHost.getHostName }"))
   )
 
-  implicit val akkaSystem = akka.actor.ActorSystem()
+  implicit val akkaSystem: ActorSystem = akka.actor.ActorSystem()
 
   val channel = Seq("channel-1")
   val pattern = Seq("*")

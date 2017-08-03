@@ -1,5 +1,6 @@
 package chapter03
 
+import akka.actor.ActorSystem
 import cats.implicits._
 import redis.RedisClient
 
@@ -16,11 +17,11 @@ case class TimeSeriesString(client: RedisClient, namespace: String) {
 
   private def getKey(granularity: Granularity, timestampInSeconds: Long): String = {
     val roundedTimestamp = getRoundedTimestamp(timestampInSeconds, granularity.duration)
-    s"$namespace:${granularity.name}:${roundedTimestamp}"
+    s"$namespace:${granularity.name}:$roundedTimestamp"
   }
 
   def insert(timestampInSeconds: Long): Future[Unit] =
-    (granularities.map(_._2) map { granularity =>
+    (granularities.values map { granularity =>
       val key = getKey(granularity, timestampInSeconds)
       client.incr(key) flatMap { _ =>
         if (granularity.ttl != -1) client.expire(key, granularity.ttl)
@@ -63,17 +64,17 @@ object TimeSeriesString extends App {
     'day -> Granularity("day", -1, units('day))
   )
 
-  def displayResults(granularityName: String, results: Seq[FetchResult]) = {
-    println(s"Results from ${granularityName}:")
+  def displayResults(granularityName: String, results: Seq[FetchResult]): Unit = {
+    println(s"Results from $granularityName:")
     println("Timestamp \t| Value")
     println("--------------- | ------")
-    results map { result =>
+    results foreach { result =>
       println(s"\t${result.timestamp}\t| ${result.value}")
     }
     println()
   }
 
-  implicit val akkaSystem = akka.actor.ActorSystem()
+  implicit val akkaSystem: ActorSystem = akka.actor.ActorSystem()
 
   val client = RedisClient("localhost", 6379)
 
