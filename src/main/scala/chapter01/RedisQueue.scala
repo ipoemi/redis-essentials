@@ -1,6 +1,7 @@
 package chapter01
 
 import akka.actor.ActorSystem
+import com.typesafe.config.ConfigFactory
 import redis.RedisClient
 import redis.RedisBlockingClient
 
@@ -32,8 +33,12 @@ case class RedisQueue(name: String, client: RedisClient, blockingClient: RedisBl
 
 object RedisQueue extends App {
   implicit val akkaSystem: ActorSystem = akka.actor.ActorSystem()
-  val client = RedisClient("localhost", 6379)
-  val blockingClient = RedisBlockingClient("localhost", 6379)
+  val config = ConfigFactory.load()
+  val hostname = config.getString("redis.hostname")
+  val port = config.getInt("redis.port")
+
+  val client = RedisClient(hostname, port)
+  val blockingClient = RedisBlockingClient(hostname, port)
   val queue1 = RedisQueue("queue1", client, blockingClient)
   println(queue1.size.foreach(println(_)))
   println(queue1.push("data1"))

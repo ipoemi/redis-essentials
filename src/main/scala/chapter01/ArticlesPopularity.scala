@@ -1,6 +1,7 @@
 package chapter01
 
 import akka.actor.ActorSystem
+import com.typesafe.config.ConfigFactory
 import redis.RedisClient
 
 import scala.concurrent.Future
@@ -36,7 +37,11 @@ object ArticlesPopularity extends App {
 
   implicit val akkaSystem: ActorSystem = akka.actor.ActorSystem()
 
-  val client = RedisClient("localhost", 6379)
+  val config = ConfigFactory.load()
+  val hostname = config.getString("redis.hostname")
+  val port = config.getInt("redis.port")
+
+  val client = RedisClient(hostname, port)
 
   val r = for {
     _ <- client.set("article:12345:headline", "Google Wants to Turn Your Clothes Into a Computer")

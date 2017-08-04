@@ -1,6 +1,7 @@
 package chapter01
 
 import akka.actor.ActorSystem
+import com.typesafe.config.ConfigFactory
 import redis.RedisClient
 
 import scala.concurrent.Future
@@ -49,7 +50,11 @@ object HashVotingSystem extends App {
 
   implicit val akkaSystem: ActorSystem = akka.actor.ActorSystem()
 
-  val client = RedisClient("localhost", 6379)
+  val config = ConfigFactory.load()
+  val hostname = config.getString("redis.hostname")
+  val port = config.getInt("redis.port")
+
+  val client = RedisClient(hostname, port)
   /*
   saveLink("123", "dayvson", "Maxwell Dayvson's Github page", "https://github.com/dayvson")
   upVote("123")

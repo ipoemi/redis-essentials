@@ -2,6 +2,7 @@ package chapter04
 
 import akka.actor.{ActorSystem, Props}
 import com.github.nscala_time.time.Imports.DateTime
+import com.typesafe.config.ConfigFactory
 import redis.actors.RedisSubscriberActor
 import redis.api.pubsub._
 
@@ -9,9 +10,9 @@ import scala.concurrent.Await
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
-class SubscribeActor(channels: Seq[String] = Nil, patterns: Seq[String] = Nil) extends
+class SubscribeActor(hostname: String, port: Int, channels: Seq[String] = Nil, patterns: Seq[String] = Nil) extends
   RedisSubscriberActor(
-    new java.net.InetSocketAddress("localhost", 6379),
+    new java.net.InetSocketAddress(hostname, port),
     channels,
     patterns,
     onConnectStatus = connected => { println(s"connected: $connected") }
@@ -45,7 +46,11 @@ object SubscribeActor extends App {
   val channel = Seq("channel-1")
   val pattern = Seq("*")
 
-  val actor = akkaSystem.actorOf(Props(classOf[SubscribeActor], channel, pattern))
+  val config = ConfigFactory.load()
+  val hostname = config.getString("redis.hostname")
+  val port = config.getInt("redis.port")
+
+  val actor = akkaSystem.actorOf(Props(classOf[SubscribeActor], hostname, port, channel, pattern))
 
   akkaSystem.scheduler.scheduleOnce(20 seconds)(Await.result(akkaSystem.terminate(), Duration.Inf))
 }

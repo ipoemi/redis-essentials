@@ -1,8 +1,6 @@
 package chapter04
 
 import akka.actor.ActorSystem
-import akka.util.ByteString
-import cats.implicits._
 import com.typesafe.config.ConfigFactory
 import redis.RedisClient
 
@@ -10,7 +8,14 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 
-object Publisher extends App {
+object ZpopLua extends App {
+
+  val luaScript =
+    """
+      |local elements = redis.call("ZRANGE", KEYS[1], 0, 0)
+      |redis.call("ZREM", KEYS[1], elements[1])
+      |return elements[1]
+    """.stripMargin
 
   implicit val akkaSystem: ActorSystem = akka.actor.ActorSystem()
 
@@ -20,14 +25,15 @@ object Publisher extends App {
 
   val client = RedisClient(hostname, port)
 
-  val channel = "channel-1"
-
   val r = for {
-    _ <- client.publish(channel, "NO!!")
-    _ <- client.publish(channel, "DATE")
-    _ <- client.publish(channel, "HOSTNAME")
-    _ <- client.publish(channel, "PING")
-  } yield ()
+    _ <- client.flushall()
+    _ <- client.zadd("presidents", (1732, "George Washington"))
+    _ <- client.zadd("presidents", (1809, "Abrahm Lincoln"))
+    _ <- client.zadd("presidents", (1858, "Theodors Roosevelt"))
+    member <- client.eval[String](luaScript, Seq("presidents"))
+  } yield {
+    println(s"The first president in the group is: $member")
+  }
 
   Await.result(r, Duration.Inf)
   Await.result(akkaSystem.terminate(), Duration.Inf)

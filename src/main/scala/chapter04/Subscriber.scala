@@ -2,6 +2,7 @@ package chapter04
 
 import akka.actor.ActorSystem
 import com.github.nscala_time.time.Imports.DateTime
+import com.typesafe.config.ConfigFactory
 import redis._
 import redis.api.pubsub.Message
 
@@ -21,7 +22,11 @@ object Subscriber extends App {
 
   val channel = Seq("channel-1")
 
-  val client = RedisPubSub("localhost", 6379, channel, Seq("*"), {
+  val config = ConfigFactory.load()
+  val hostname = config.getString("redis.hostname")
+  val port = config.getInt("redis.port")
+
+  val client = RedisPubSub(hostname, port, channel, Seq("*"), {
     case Message(_, bs) =>
       val cs = bs.decodeString("utf-8")
       Command.get(cs) match {

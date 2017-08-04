@@ -1,16 +1,15 @@
-package chapter04
+package chapter06
 
 import akka.actor.ActorSystem
-import akka.util.ByteString
 import cats.implicits._
 import com.typesafe.config.ConfigFactory
 import redis.RedisClient
 
+import scala.concurrent.Await
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
-import scala.concurrent.{Await, Future}
 
-object Publisher extends App {
+object BenchmarkSet extends App {
 
   implicit val akkaSystem: ActorSystem = akka.actor.ActorSystem()
 
@@ -20,14 +19,24 @@ object Publisher extends App {
 
   val client = RedisClient(hostname, port)
 
-  val channel = "channel-1"
+  val MaxUsers = 100000
+  val MaxDeals = 12
+  val MaxDealId = 10000
+
+  client.flushall()
+
+  val bm = ((0 until MaxUsers) map { i =>
+    val multi = client.multi()
+    (0 until MaxDeals) map { j =>
+      multi.sadd(s"set:user:$i", MaxDealId - j)
+    }
+    multi.exec()
+  }).toVector.sequenceU
 
   val r = for {
-    _ <- client.publish(channel, "NO!!")
-    _ <- client.publish(channel, "DATE")
-    _ <- client.publish(channel, "HOSTNAME")
-    _ <- client.publish(channel, "PING")
-  } yield ()
+    _ <- bm
+    infos <- client.info("memory")
+  } yield println(infos)
 
   Await.result(r, Duration.Inf)
   Await.result(akkaSystem.terminate(), Duration.Inf)

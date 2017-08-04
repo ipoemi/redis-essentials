@@ -1,6 +1,7 @@
 package chapter02
 
 import akka.actor.ActorSystem
+import com.typesafe.config.ConfigFactory
 import redis.RedisClient
 import redis.RedisBlockingClient
 
@@ -16,7 +17,11 @@ object LeaderBoard extends App {
 
   implicit val akkaSystem: ActorSystem = akka.actor.ActorSystem()
 
-  val client = RedisClient("localhost", 6379)
+  val config = ConfigFactory.load()
+  val hostname = config.getString("redis.hostname")
+  val port = config.getInt("redis.port")
+
+  val client = RedisClient(hostname, port)
 
   case class User(rank: Long, score: Double, userName: String)
 

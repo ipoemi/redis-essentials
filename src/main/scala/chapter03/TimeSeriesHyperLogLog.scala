@@ -2,6 +2,7 @@ package chapter03
 
 import akka.actor.ActorSystem
 import akka.util.ByteString
+import com.typesafe.config.ConfigFactory
 import cats.implicits._
 import redis.RedisClient
 
@@ -81,7 +82,11 @@ object TimeSeriesHyperLogLog extends App {
 
   implicit val akkaSystem: ActorSystem = akka.actor.ActorSystem()
 
-  val client = RedisClient("localhost", 6379)
+  val config = ConfigFactory.load()
+  val hostname = config.getString("redis.hostname")
+  val port = config.getInt("redis.port")
+
+  val client = RedisClient(hostname, port)
 
   val timeSeries = TimeSeriesHyperLogLog(client, "concurrentplays")
   val beginTimestamp = 0

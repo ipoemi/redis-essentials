@@ -1,15 +1,20 @@
-package chapter01
+package chapter04
 
 import akka.actor.ActorSystem
 import com.typesafe.config.ConfigFactory
-import redis.{RedisBlockingClient, RedisClient}
+import redis.RedisClient
 
-import scala.concurrent.Future
 import scala.concurrent.Await
-import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration._
 
-object ProducerWorker extends App {
+object ZpopLuaEvalsha extends App {
+
+  val luaScript =
+    """
+      |return "Lua script using EVALSHA"
+    """.stripMargin
+
   implicit val akkaSystem: ActorSystem = akka.actor.ActorSystem()
 
   val config = ConfigFactory.load()
@@ -17,13 +22,15 @@ object ProducerWorker extends App {
   val port = config.getInt("redis.port")
 
   val client = RedisClient(hostname, port)
-  val blockingClient = RedisBlockingClient("localhost", 6379)
-  val logsQueue = RedisQueue("logs", client, blockingClient)
-  val MAX = 5
-  val r = (0 until 5).map { i =>
-    logsQueue.push(s"Hello world #$i")
+
+  val r = for {
+    _ <- client.flushall()
+    scriptId <- client.scriptLoad(luaScript)
+    msg <- client.evalsha[String](scriptId)
+  } yield {
+    println(msg)
   }
-  println(s"Created $MAX logs")
-  Await.result(Future.sequence(r), Duration.Inf)
+
+  Await.result(r, Duration.Inf)
   Await.result(akkaSystem.terminate(), Duration.Inf)
 }

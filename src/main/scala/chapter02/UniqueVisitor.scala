@@ -1,6 +1,7 @@
 package chapter02
 
 import akka.actor.ActorSystem
+import com.typesafe.config.ConfigFactory
 import redis.RedisClient
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -35,7 +36,11 @@ object UniqueVisitor extends App {
 
   implicit val akkaSystem: ActorSystem = akka.actor.ActorSystem()
 
-  val client = RedisClient("localhost", 6379)
+  val config = ConfigFactory.load()
+  val hostname = config.getString("redis.hostname")
+  val port = config.getInt("redis.port")
+
+  val client = RedisClient(hostname, port)
 
   val MaxUser = 200
   val TotalVisits = 1000
